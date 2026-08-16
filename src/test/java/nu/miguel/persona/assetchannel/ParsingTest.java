@@ -40,4 +40,12 @@ class ParsingTest {
         assertEquals("SESSION_BOUNDARY", AssetChannelExpansion.parseSetStage(
                 Map.of("stage", "combat", "transition", "session-boundary")).get("transition"));
     }
+
+    @Test void parsesGenericHudRequestsAndRejectsBadVariables() {
+        Map<String,Object> parsed=AssetChannelExpansion.parseShowHud(Map.of("id","notification.banner","slot","quest","priority",50,
+                "resume-interrupted",true,"variables",Map.of("heading","Quest Started","body","<quest-title>")));
+        assertEquals(50,parsed.get("priority"));assertEquals("quest",parsed.get("slot"));
+        assertEquals(Map.of(),AssetChannelExpansion.parseShowHud(Map.of("id","banner")).get("variables"));
+        assertThrows(IllegalArgumentException.class,()->AssetChannelExpansion.parseUpdateHud(Map.of("variables",Map.of("bad name","x"))));
+    }
 }

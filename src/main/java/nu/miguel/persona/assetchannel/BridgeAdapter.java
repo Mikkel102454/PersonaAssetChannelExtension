@@ -6,6 +6,8 @@ import org.bukkit.entity.Player;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Map;
+import net.kyori.adventure.text.Component;
 
 interface BridgeAdapter {
     enum Origin { LISTENER, PLAYER, NPC }
@@ -22,4 +24,8 @@ interface BridgeAdapter {
     Optional<String> sessionStage(UUID id);
     void setStage(UUID id, String stage, Transition transition);
     Optional<String> icon(String id);
+    default void showHud(Player player,String id,String slot,Integer priority,Boolean resume,Map<String,Component> variables){throw new BridgeException("HUD API is unavailable");}
+    default void updateHud(Player player,String slot,Map<String,Component> variables){throw new BridgeException("HUD API is unavailable");}
+    default boolean hideHud(Player player,String slot){return false;}
+    default boolean hudActive(Player player,String slot){return false;}
 }

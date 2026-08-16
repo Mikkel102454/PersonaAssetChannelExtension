@@ -9,12 +9,15 @@ import org.bukkit.SoundCategory;
 import org.bukkit.entity.Entity;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.regex.Pattern;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 
 public final class AssetChannelExpansion extends PersonaExpansion {
     private static final Pattern IDENTIFIER = Pattern.compile("[a-z0-9][a-z0-9._-]*");
@@ -38,6 +41,9 @@ public final class AssetChannelExpansion extends PersonaExpansion {
         registrar.command("start-soundtrack", command(AssetChannelExpansion::parseStartSoundtrack, this::startSoundtrack));
         registrar.command("stop-soundtrack", command(AssetChannelExpansion::parseSlot, this::stopSoundtrack));
         registrar.command("set-stage", command(AssetChannelExpansion::parseSetStage, this::setStage));
+        registrar.command("show-hud", command(AssetChannelExpansion::parseShowHud, this::showHud));
+        registrar.command("update-hud", command(AssetChannelExpansion::parseUpdateHud, this::updateHud));
+        registrar.command("hide-hud", command(AssetChannelExpansion::parseSlot, this::hideHud));
 
         registrar.condition("available", new ExpansionTypes.Condition() {
             @Override public boolean test(PersonaContext context, Map<String, Object> data) { return adapter.available(); }
@@ -48,6 +54,10 @@ public final class AssetChannelExpansion extends PersonaExpansion {
                 try { return adapter.available() && sessions.active(context.player(), string(data, "slot")); }
                 catch (RuntimeException ignored) { return false; }
             }
+        });
+        registrar.condition("hud-active", new ExpansionTypes.Condition() {
+            @Override public Map<String,Object> parse(Map<String,Object> yaml){return parseSlot(yaml);}
+            @Override public boolean test(PersonaContext context,Map<String,Object> data){try{return adapter.available()&&adapter.hudActive(context.player(),string(data,"slot"));}catch(RuntimeException ignored){return false;}}
         });
 
         registrar.placeholder("icon", (context, argument) -> {
@@ -65,6 +75,7 @@ public final class AssetChannelExpansion extends PersonaExpansion {
             try { return adapter.available() ? sessions.stage(context.player(), slot).orElse("") : ""; }
             catch (RuntimeException ignored) { return ""; }
         });
+        registrar.placeholder("hud-active",(context,argument)->{try{return String.valueOf(adapter.available()&&adapter.hudActive(context.player(),placeholderSlot(argument)));}catch(RuntimeException ignored){return "false";}});
     }
 
     private void playSound(PersonaContext context, Map<String, Object> data) {
@@ -99,6 +110,16 @@ public final class AssetChannelExpansion extends PersonaExpansion {
     private void setStage(PersonaContext context, Map<String, Object> data) {
         sessions.setStage(context.player(), string(data, "slot"), string(data, "stage"),
                 BridgeAdapter.Transition.valueOf(string(data, "transition")));
+    }
+
+    private void showHud(PersonaContext context,Map<String,Object> data){
+        adapter.showHud(context.player(),string(data,"id"),(String)data.get("slot"),(Integer)data.get("priority"),(Boolean)data.get("resume-interrupted"),components(context,data));
+    }
+    private void updateHud(PersonaContext context,Map<String,Object> data){adapter.updateHud(context.player(),string(data,"slot"),components(context,data));}
+    private void hideHud(PersonaContext context,Map<String,Object> data){if(!adapter.hideHud(context.player(),string(data,"slot")))throw new BridgeException("no active HUD in slot '"+string(data,"slot")+"'");}
+    @SuppressWarnings("unchecked") private static Map<String,Component> components(PersonaContext context,Map<String,Object> data){
+        Map<String,String> raw=(Map<String,String>)data.get("variables");Map<String,Component> out=new LinkedHashMap<>();MiniMessage mini=MiniMessage.miniMessage();
+        raw.forEach((name,value)->out.put(name,mini.deserialize(context.api().resolvePlaceholders(context,value))));return Map.copyOf(out);
     }
 
     private static Entity source(PersonaContext context, BridgeAdapter.Origin origin) {
@@ -170,6 +191,20 @@ public final class AssetChannelExpansion extends PersonaExpansion {
             default -> throw new IllegalArgumentException("transition must be immediate, session-boundary, or player-boundary");
         });
         return Map.copyOf(out);
+    }
+
+    static Map<String,Object> parseShowHud(Map<String,Object> yaml){
+        Map<String,Object> out=new HashMap<>();out.put("id",identifier(yaml,"id"));out.put("variables",variables(yaml,false));
+        if(yaml.containsKey("slot"))out.put("slot",slot(yaml.get("slot")));
+        if(yaml.containsKey("priority")){Object value=yaml.get("priority");try{out.put("priority",value instanceof Number n?n.intValue():Integer.parseInt(String.valueOf(value)));}catch(NumberFormatException e){throw new IllegalArgumentException("priority must be an integer");}}
+        if(yaml.containsKey("resume-interrupted"))out.put("resume-interrupted",booleanValue(yaml.get("resume-interrupted"),"resume-interrupted"));
+        return Map.copyOf(out);
+    }
+    static Map<String,Object> parseUpdateHud(Map<String,Object> yaml){return Map.of("slot",slot(yaml.getOrDefault("slot","default")),"variables",variables(yaml,true));}
+    private static Map<String,String> variables(Map<String,Object> yaml,boolean required){
+        Object raw=yaml.get("variables");if(raw==null&&!required)return Map.of();
+        if(!(raw instanceof Map<?,?> values)||required&&values.isEmpty())throw new IllegalArgumentException("variables must be a non-empty map");
+        Map<String,String> out=new LinkedHashMap<>();for(var entry:values.entrySet()){String name=String.valueOf(entry.getKey());if(!name.matches("[a-zA-Z][a-zA-Z0-9_.-]*"))throw new IllegalArgumentException("invalid variable name '"+name+"'");out.put(name,String.valueOf(entry.getValue()));}return Map.copyOf(out);
     }
 
     static Map<String, Object> parseSlot(Map<String, Object> yaml) {

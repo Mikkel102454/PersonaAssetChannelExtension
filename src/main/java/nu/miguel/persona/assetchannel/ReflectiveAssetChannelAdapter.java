@@ -13,6 +13,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Map;
+import net.kyori.adventure.text.Component;
 
 final class ReflectiveAssetChannelAdapter implements BridgeAdapter {
     private static final String PLUGIN_NAME = "AssetChannel";
@@ -100,6 +102,21 @@ final class ReflectiveAssetChannelAdapter implements BridgeAdapter {
         return Optional.of("<font:" + key + ">" + character + "</font>");
     }
 
+    @Override public void showHud(Player player,String id,String slot,Integer priority,Boolean resume,Map<String,Component> variables) {
+        Binding b=binding(); Object request=construct(b.hudRequest,variables,Optional.ofNullable(slot),Optional.ofNullable(priority),Optional.ofNullable(resume));
+        String result=enumName(call(b.showHud,b.api,player,id,request));
+        if(!List.of("DISPLAYED","QUEUED","TEXT_FALLBACK").contains(result))throw resultFailure("HUD '"+id+"'",result);
+    }
+    @Override public void updateHud(Player player,String slot,Map<String,Component> variables) {
+        Binding b=binding();Object session=b.hudSession(player,slot).orElseThrow(()->new BridgeException("no active HUD in slot '"+slot+"'"));
+        if(!Boolean.TRUE.equals(call(b.hudUpdate,session,variables)))throw new BridgeException("HUD variables are invalid for slot '"+slot+"'");
+    }
+    @Override public boolean hideHud(Player player,String slot){Binding b=binding();return Boolean.TRUE.equals(call(b.hideHud,b.api,player,slot));}
+    @Override public boolean hudActive(Player player,String slot){
+        Binding b=binding();Optional<?> session=b.hudSession(player,slot);if(session.isEmpty())return false;
+        return !enumName(call(b.hudState,session.get())).equals("CLOSED");
+    }
+
     private Binding binding() {
         Plugin plugin = Bukkit.getPluginManager().getPlugin(PLUGIN_NAME);
         Binding current = cached;
@@ -128,6 +145,7 @@ final class ReflectiveAssetChannelAdapter implements BridgeAdapter {
             case "SOURCE_UNAVAILABLE" -> new BridgeException("playback origin is unavailable for " + target);
             case "UNKNOWN_STAGE" -> new BridgeException("unknown AssetChannel " + target);
             case "INACTIVE" -> new BridgeException("soundtrack session is inactive");
+            case "INVALID_VARIABLES" -> new BridgeException("invalid variables for AssetChannel " + target);
             default -> new BridgeException("AssetChannel returned unsupported result " + result + " for " + target);
         };
     }
@@ -178,6 +196,8 @@ final class ReflectiveAssetChannelAdapter implements BridgeAdapter {
         final Method sessionId, sessionActive, sessionStage, sessionStop, sessionSetStage;
         final Method transitionImmediate, transitionSessionBoundary, transitionPlayerBoundary;
         final Method iconCharacter, iconFont;
+        final Method showHud, hideHud, hudSession, hudUpdate, hudState;
+        final Constructor<?> hudRequest;
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         Binding(Plugin plugin) throws ReflectiveOperationException {
@@ -189,6 +209,8 @@ final class ReflectiveAssetChannelAdapter implements BridgeAdapter {
             Class<?> musicSessionClass = Class.forName("nu.miguel.assetChannel.api.MusicSession", false, loader);
             Class<?> transitionClass = Class.forName("nu.miguel.assetChannel.api.StageTransitionSettings", false, loader);
             Class<?> iconClass = Class.forName("nu.miguel.assetChannel.api.IconAsset", false, loader);
+            Class<?> hudRequestClass = Class.forName("nu.miguel.assetChannel.api.HudRequest", false, loader);
+            Class<?> hudSessionClass = Class.forName("nu.miguel.assetChannel.api.HudSession", false, loader);
             api = Bukkit.getServicesManager().load((Class) apiClass);
             if (api == null) throw new IllegalStateException("AssetChannel API service is not registered");
 
@@ -202,6 +224,12 @@ final class ReflectiveAssetChannelAdapter implements BridgeAdapter {
             startSoundtrack = apiClass.getMethod("startSoundtrack", String.class, Collection.class, settingsClass);
             session = apiClass.getMethod("session", UUID.class);
             icon = apiClass.getMethod("icon", String.class);
+            showHud=apiClass.getMethod("showHud",Player.class,String.class,hudRequestClass);
+            hideHud=apiClass.getMethod("hideHud",Player.class,String.class);
+            hudSession=apiClass.getMethod("hudSession",Player.class,String.class);
+            hudRequest=hudRequestClass.getConstructor(Map.class,Optional.class,Optional.class,Optional.class);
+            hudUpdate=hudSessionClass.getMethod("updateVariables",Map.class);
+            hudState=hudSessionClass.getMethod("state");
             sessionSettings = settingsClass.getConstructor(boolean.class, boolean.class, boolean.class,
                     float.class, String.class, originClass);
             sessionId = musicSessionClass.getMethod("id");
@@ -227,5 +255,6 @@ final class ReflectiveAssetChannelAdapter implements BridgeAdapter {
         }
 
         Optional<?> session(UUID id) { return optional(call(session, api, id)); }
+        Optional<?> hudSession(Player player,String slot){return optional(call(hudSession,api,player,slot));}
     }
 }
