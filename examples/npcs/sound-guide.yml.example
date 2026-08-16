@@ -1,0 +1,23 @@
+# Copy to plugins/Persona/npcs/sound-guide.yml.
+id: demo:sound-guide
+display-name: "<aqua>Sound Guide"
+
+# This hook has an active Citizens NPC context, so origin: npc emits from the
+# NPC entity rather than from each listener.
+on-interact:
+  - type: assetchannel:play-sound
+    id: npc.guide-greeting
+    category: voice
+    volume: 1.0
+    pitch: 1.0
+    origin: npc
+
+on-no-dialogue:
+  - type: assetchannel:play-sound
+    id: ui.denied
+    origin: player
+
+dialogues:
+  - id: demo:sound-guide-dialogue
+    priority: 100
+    when: { type: assetchannel:available }

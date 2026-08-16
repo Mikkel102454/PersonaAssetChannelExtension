@@ -1,0 +1,4 @@
+main: nu.miguel.persona.assetchannel.AssetChannelExpansion
+id: assetchannel
+version: 2.0.0
+api-version: '2.0'

@@ -1,0 +1,51 @@
+# Copy to plugins/Persona/dialogues/sound-guide-dialogue.yml.
+id: demo:sound-guide-dialogue
+start: greeting
+nodes:
+  greeting:
+    script:
+      - type: say
+        text: "<assetchannel:icon:music-note> Music can follow a Persona dialogue."
+      - type: assetchannel:start-soundtrack
+        id: music.guide
+        slot: guide
+        loop: true
+        volume: 0.5
+        stage: calm
+        origin: npc
+        on-failure:
+          - { type: goto, node: unavailable }
+      - type: say
+        text: "The soundtrack command ran between these two lines."
+      - type: choice
+        options:
+          - text: "Switch to the energetic stage."
+            script:
+              - type: assetchannel:set-stage
+                slot: guide
+                stage: energetic
+                transition: player-boundary
+                on-success: [ { type: goto, node: energetic } ]
+                on-failure: [ { type: goto, node: unavailable } ]
+          - text: "Stop the music."
+            script:
+              - { type: assetchannel:stop-soundtrack, slot: guide }
+              - { type: end-dialogue }
+  energetic:
+    script:
+      - type: say
+        text: "The requested stage is now <assetchannel:session-stage:guide>."
+      - type: assetchannel:play-sound
+        id: ui.stage-change
+        category: master
+        origin: listener
+      - type: say
+        text: "That confirmation sound also played between dialogue lines."
+      - type: assetchannel:stop-soundtrack
+        slot: guide
+      - type: end-dialogue
+  unavailable:
+    script:
+      - type: say
+        text: "The audio command could not be completed right now."
+      - type: end-dialogue

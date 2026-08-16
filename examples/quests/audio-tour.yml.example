@@ -1,0 +1,48 @@
+# Copy to plugins/Persona/quests/audio-tour.yml and replace illustrative IDs.
+id: demo:audio-tour
+title: "The Audio Tour"
+description: "A quest demonstrating sounds, icons, and soundtrack stages."
+when: { type: assetchannel:available }
+on-start:
+  - type: assetchannel:play-sound
+    id: ui.quest-start
+    category: master
+    volume: 0.8
+  - type: assetchannel:start-soundtrack
+    id: music.adventure
+    slot: quest-music
+    loop: true
+    retain: true
+    volume: 0.7
+    stage: exploration
+    origin: listener
+  - type: message
+    text: "<assetchannel:icon:quest-marker> <gold>The audio tour has begun."
+on-complete:
+  - type: assetchannel:set-stage
+    slot: quest-music
+    stage: victory
+    transition: immediate
+  - { type: wait, duration: 3s }
+  - type: assetchannel:stop-soundtrack
+    slot: quest-music
+on-fail:
+  - { type: assetchannel:stop-soundtrack, slot: quest-music }
+on-reset:
+  - { type: assetchannel:stop-soundtrack, slot: quest-music }
+phases:
+  - id: listen
+    title: "Listen for thirty seconds"
+    on-start:
+      - type: message
+        text: "Music active: <assetchannel:session-active:quest-music> - stage: <assetchannel:session-stage:quest-music>"
+    objectives:
+      - id: remain
+        title: "Stay and listen"
+        type: wait
+        duration: 30s
+        on-progress:
+          every: 10s
+          script:
+            - type: action-bar
+              text: "<assetchannel:icon:music-note> Stage: <assetchannel:session-stage:quest-music>"

@@ -1,0 +1,23 @@
+# Persona 2.0 command snippets for any script list.
+- { type: assetchannel:play-sound, id: ui.click }
+
+- type: assetchannel:play-sound
+  id: effects.magic
+  origin: player
+  category: ambient
+  volume: 1.25
+  pitch: 0.9
+
+- { type: assetchannel:stop-sound, id: effects.magic }
+- { type: assetchannel:stop-all-sounds }
+
+- type: assetchannel:start-soundtrack
+  id: music.overworld
+  loop: true
+  synchronized: true
+  retain: false
+  stage: daytime
+- type: assetchannel:set-stage
+  stage: nighttime
+  transition: session-boundary
+- { type: assetchannel:stop-soundtrack }
